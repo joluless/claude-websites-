@@ -223,42 +223,52 @@
             }
 
             async init(videoElement, onResults) {
-                this.onResultsCallback = onResults;
+                try {
+                    this.onResultsCallback = onResults;
 
-                // MediaPipe Hands konfigurieren
-                this.hands = new Hands({
-                    locateFile: (file) => {
-                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-                    }
-                });
-
-                this.hands.setOptions({
-                    maxNumHands: 2,
-                    modelComplexity: 1,
-                    minDetectionConfidence: 0.7,
-                    minTrackingConfidence: 0.5
-                });
-
-                this.hands.onResults((results) => {
-                    this.results = results;
-                    if (this.onResultsCallback && this.isActive) {
-                        this.onResultsCallback(results);
-                    }
-                });
-
-                // Kamera initialisieren
-                this.camera = new Camera(videoElement, {
-                    onFrame: async () => {
-                        if (this.isActive) {
-                            await this.hands.send({ image: videoElement });
+                    // MediaPipe Hands konfigurieren
+                    this.hands = new Hands({
+                        locateFile: (file) => {
+                            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
                         }
-                    },
-                    width: 1280,
-                    height: 720
-                });
+                    });
 
-                await this.camera.start();
-                updateStatus('Tracking aktiv', true);
+                    this.hands.setOptions({
+                        maxNumHands: 2,
+                        modelComplexity: 1,
+                        minDetectionConfidence: 0.7,
+                        minTrackingConfidence: 0.5
+                    });
+
+                    this.hands.onResults((results) => {
+                        this.results = results;
+                        if (this.onResultsCallback && this.isActive) {
+                            this.onResultsCallback(results);
+                        }
+                    });
+
+                    // Kamera initialisieren (responsive Auflösung)
+                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                    const cameraWidth = isMobile ? 640 : 1280;
+                    const cameraHeight = isMobile ? 480 : 720;
+
+                    this.camera = new Camera(videoElement, {
+                        onFrame: async () => {
+                            if (this.isActive) {
+                                await this.hands.send({ image: videoElement });
+                            }
+                        },
+                        width: cameraWidth,
+                        height: cameraHeight
+                    });
+
+                    await this.camera.start();
+                    updateStatus('Tracking aktiv', true);
+                } catch (error) {
+                    console.error('Fehler beim Initialisieren:', error);
+                    updateStatus('Kamera-Zugriff verweigert oder nicht verfügbar', false);
+                    throw error;
+                }
             }
 
             toggle() {
@@ -286,8 +296,19 @@
             }
 
             // Prüft ob Finger gestreckt ist
-            static isFingerExtended(landmarks, fingerTip, fingerPip) {
-                return landmarks[fingerTip].y < landmarks[fingerPip].y;
+            static isFingerExtended(landmarks, fingerTip, fingerPip, fingerMcp = null) {
+                // Y-Koordinate: kleiner = weiter oben (gestreckt)
+                const tipY = landmarks[fingerTip].y;
+                const pipY = landmarks[fingerPip].y;
+
+                // Zusätzliche Prüfung mit MCP für mehr Genauigkeit
+                if (fingerMcp !== null) {
+                    const mcpY = landmarks[fingerMcp].y;
+                    // Finger ist gestreckt wenn Spitze über PIP und PIP über MCP
+                    return tipY < pipY && pipY < mcpY;
+                }
+
+                return tipY < pipY;
             }
 
             // Gibt wichtige Distanzen zurück
@@ -314,14 +335,14 @@
                 };
             }
 
-            // Erkennt Gesten
+            // Erkennt Gesten (verbesserte Genauigkeit mit MCP-Gelenken)
             static detectGesture(landmarks) {
-                const indexExtended = this.isFingerExtended(landmarks, 8, 6);
-                const middleExtended = this.isFingerExtended(landmarks, 12, 10);
-                const ringExtended = this.isFingerExtended(landmarks, 16, 14);
-                const pinkyExtended = this.isFingerExtended(landmarks, 20, 18);
+                const indexExtended = this.isFingerExtended(landmarks, 8, 6, 5);
+                const middleExtended = this.isFingerExtended(landmarks, 12, 10, 9);
+                const ringExtended = this.isFingerExtended(landmarks, 16, 14, 13);
+                const pinkyExtended = this.isFingerExtended(landmarks, 20, 18, 17);
 
-                // Zeigefinger allein = Malen
+                // Zeigefinger allein = Malen (erlaubt auch Daumen)
                 if (indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
                     return 'PAINT';
                 }
@@ -331,7 +352,7 @@
                     return 'OPEN_HAND';
                 }
 
-                // Faust = Pause
+                // Alle Finger eingezogen = Faust
                 if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
                     return 'FIST';
                 }
@@ -498,8 +519,30 @@
         let handTracker = null;
         let soundSynth = null;
 
-        let canvasWidth = 1280;
-        let canvasHeight = 720;
+        // Canvas-Größe responsive berechnen
+        function getOptimalCanvasSize() {
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const maxWidth = window.innerWidth - 40;
+            const maxHeight = window.innerHeight - 300;
+
+            let width, height;
+
+            if (isMobile) {
+                // Mobile: kleinere Auflösung für bessere Performance
+                width = Math.min(640, maxWidth);
+                height = Math.min(480, maxHeight);
+            } else {
+                // Desktop: höhere Auflösung
+                width = Math.min(1280, maxWidth);
+                height = Math.min(720, maxHeight);
+            }
+
+            return { width, height };
+        }
+
+        const optimalSize = getOptimalCanvasSize();
+        let canvasWidth = optimalSize.width;
+        let canvasHeight = optimalSize.height;
 
         // Zeichnen
         let drawing = [];
@@ -540,6 +583,16 @@
             document.getElementById('toggleSound').addEventListener('click', toggleSound);
             document.getElementById('clearCanvas').addEventListener('click', clearDrawing);
             document.getElementById('toggleTracking').addEventListener('click', toggleTracking);
+
+            // Window Resize Handler (optional - für bessere Responsiveness)
+            window.addEventListener('resize', () => {
+                const newSize = getOptimalCanvasSize();
+                if (newSize.width !== canvasWidth || newSize.height !== canvasHeight) {
+                    canvasWidth = newSize.width;
+                    canvasHeight = newSize.height;
+                    resizeCanvas(canvasWidth, canvasHeight);
+                }
+            });
 
             background(255);
         }
@@ -607,15 +660,15 @@
             currentColor = color(hueValue, 80, 90);
         }
 
-        function drawStroke(stroke) {
-            if (stroke.length < 2) return;
+        function drawStroke(strokePoints) {
+            if (strokePoints.length < 2) return;
 
             push();
             noFill();
 
-            for (let i = 1; i < stroke.length; i++) {
-                let p1 = stroke[i - 1];
-                let p2 = stroke[i];
+            for (let i = 1; i < strokePoints.length; i++) {
+                let p1 = strokePoints[i - 1];
+                let p2 = strokePoints[i];
 
                 stroke(p1.color || currentColor);
                 strokeWeight(5);
@@ -626,7 +679,7 @@
                 circle(p1.x, p1.y, 5);
             }
 
-            let lastPoint = stroke[stroke.length - 1];
+            let lastPoint = strokePoints[strokePoints.length - 1];
             fill(lastPoint.color || currentColor);
             noStroke();
             circle(lastPoint.x, lastPoint.y, 5);
