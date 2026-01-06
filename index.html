@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Tracking Paint & Synth</title>
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <!-- Tone.js für Sound Synthese -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Hand Tracking Paint & Synth</h1>
+
+        <div class="info-panel">
+            <div class="controls">
+                <button id="toggleSound">Sound: Aus</button>
+                <button id="clearCanvas">Canvas leeren</button>
+                <button id="toggleTracking">Tracking: An</button>
+            </div>
+            <div class="status">
+                <p>Status: <span id="statusText">Warte auf Kamera...</span></p>
+                <p>Hände erkannt: <span id="handsCount">0</span></p>
+            </div>
+            <div class="instructions">
+                <h3>Anleitung:</h3>
+                <ul>
+                    <li><strong>Zeigefinger:</strong> Malen (wenn nach vorne gestreckt)</li>
+                    <li><strong>Daumen-Zeigefinger Distanz:</strong> Steuert Tonhöhe</li>
+                    <li><strong>Daumen-Mittelfinger Distanz:</strong> Steuert Lautstärke</li>
+                    <li><strong>Daumen-Ringfinger Distanz:</strong> Steuert Filter</li>
+                    <li><strong>Offene Hand:</strong> Pausiert Malen</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <video id="videoElement" class="input-video" playsinline></video>
+            <div id="p5canvas"></div>
+        </div>
+    </div>
+
+    <script src="js/soundSynth.js"></script>
+    <script src="js/handTracking.js"></script>
+    <script src="js/sketch.js"></script>
+</body>
+</html>

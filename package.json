@@ -1,0 +1,21 @@
+{
+  "name": "hand-tracking-paint-synth",
+  "version": "1.0.0",
+  "description": "Interactive hand tracking application with painting and sound synthesis",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8080 -o"
+  },
+  "keywords": [
+    "hand-tracking",
+    "mediapipe",
+    "p5js",
+    "sound-synthesis",
+    "interactive-art"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}
