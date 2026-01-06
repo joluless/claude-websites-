@@ -25,24 +25,33 @@ Eine interaktive Webanwendung, die Hand-Tracking mit kreativem Malen und Sound-S
 - **MediaPipe Hands** - Echtzeit Hand-Tracking
 - **Tone.js** - Web Audio Synthese
 - Reines JavaScript (ES6+)
+- **Single-File HTML** - Alles in einer Datei für maximale Portabilität! 📦
 
 ## Installation & Start
 
-### Option 1: Mit npm (empfohlen)
+### ⚡ Schnellstart (Einfachste Methode)
+
+**Die Anwendung ist eine einzige HTML-Datei - öffne einfach `index.html` im Browser!**
+
+Alle Abhängigkeiten werden über CDN geladen, keine Installation nötig!
+
+### Option 1: Direktes Öffnen
+
+Doppelklick auf `index.html` → Fertig! ✅
+
+**Wichtig für Kamera-Zugriff:** Einige Browser (Chrome, Safari) blockieren Kamera bei `file://` URLs.
+Wenn die Kamera nicht funktioniert, nutze einen der lokalen Server unten.
+
+### Option 2: Mit npm
 
 ```bash
-# Dependencies installieren
-npm install
-
-# Server starten
+# Server starten (npm install bereits gemacht)
 npm start
 ```
 
 Die Anwendung öffnet sich automatisch unter `http://localhost:8080`
 
-### Option 2: Ohne npm
-
-Öffne einfach die `index.html` direkt im Browser. Beachte, dass manche Browser aus Sicherheitsgründen einen lokalen Webserver erfordern.
+### Option 3: Mit Python (ohne npm)
 
 **Empfohlene Alternative mit Python:**
 
@@ -93,16 +102,20 @@ Dann öffne `http://localhost:8080` im Browser.
 
 ```
 hand-tracking-paint-synth/
-├── index.html              # Haupt-HTML-Datei
-├── package.json            # Projekt-Dependencies
+├── index.html              # 🎯 ALLES IN EINER DATEI!
+│                           # Enthält: HTML, CSS, JavaScript,
+│                           # HandTracking, SoundSynth, p5.js Sketch
+├── package.json            # Optional: npm Server-Scripts
 ├── README.md               # Diese Datei
-├── css/
-│   └── style.css           # Styling
-└── js/
-    ├── sketch.js           # p5.js Haupt-Sketch
-    ├── handTracking.js     # MediaPipe Hand-Tracking
-    └── soundSynth.js       # Tone.js Sound-Synthese
+└── DEPLOYMENT.md          # Deployment-Anleitung für iOS/macOS
 ```
+
+**📦 Single-File Design:**
+- Alle Styles inline im `<style>`-Tag
+- Gesamter JavaScript-Code inline im `<script>`-Tag
+- Externe Bibliotheken über CDN (p5.js, MediaPipe, Tone.js)
+- Keine Build-Steps, keine Dependencies
+- Perfekt zum Teilen und Deployen!
 
 ## Technische Details
 

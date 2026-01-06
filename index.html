@@ -4,19 +4,177 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hand Tracking Paint & Synth</title>
-    <link rel="stylesheet" href="css/style.css">
 
-    <!-- p5.js -->
+    <!-- ===== EXTERNE BIBLIOTHEKEN ===== -->
+    <!-- p5.js für Canvas und Grafik -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
 
-    <!-- MediaPipe Hands -->
+    <!-- MediaPipe Hands für Hand-Tracking -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
-    <!-- Tone.js für Sound Synthese -->
+    <!-- Tone.js für Sound-Synthese -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <!-- ===== INLINE STYLES ===== -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .info-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .controls button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            background: #667eea;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .controls button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls button:active {
+            transform: translateY(0);
+        }
+
+        .status {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+
+        .status p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .status span {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .instructions {
+            margin-top: 15px;
+        }
+
+        .instructions h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .instructions ul {
+            list-style-position: inside;
+            line-height: 1.8;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        .instructions strong {
+            color: #764ba2;
+        }
+
+        .canvas-container {
+            position: relative;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .input-video {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 240px;
+            height: 180px;
+            border: 3px solid #667eea;
+            border-radius: 8px;
+            z-index: 10;
+            transform: scaleX(-1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        #p5canvas {
+            position: relative;
+        }
+
+        #p5canvas canvas {
+            display: block;
+            border-radius: 10px;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .controls button {
+                width: 100%;
+            }
+
+            .input-video {
+                width: 160px;
+                height: 120px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -50,8 +208,577 @@
         </div>
     </div>
 
-    <script src="js/soundSynth.js"></script>
-    <script src="js/handTracking.js"></script>
-    <script src="js/sketch.js"></script>
+    <!-- ===== JAVASCRIPT CODE ===== -->
+    <script>
+        // ========================================
+        // HAND TRACKING KLASSE (MediaPipe Hands)
+        // ========================================
+        class HandTracking {
+            constructor() {
+                this.hands = null;
+                this.camera = null;
+                this.results = null;
+                this.isActive = true;
+                this.onResultsCallback = null;
+            }
+
+            async init(videoElement, onResults) {
+                this.onResultsCallback = onResults;
+
+                // MediaPipe Hands konfigurieren
+                this.hands = new Hands({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                    }
+                });
+
+                this.hands.setOptions({
+                    maxNumHands: 2,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.7,
+                    minTrackingConfidence: 0.5
+                });
+
+                this.hands.onResults((results) => {
+                    this.results = results;
+                    if (this.onResultsCallback && this.isActive) {
+                        this.onResultsCallback(results);
+                    }
+                });
+
+                // Kamera initialisieren
+                this.camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (this.isActive) {
+                            await this.hands.send({ image: videoElement });
+                        }
+                    },
+                    width: 1280,
+                    height: 720
+                });
+
+                await this.camera.start();
+                updateStatus('Tracking aktiv', true);
+            }
+
+            toggle() {
+                this.isActive = !this.isActive;
+                return this.isActive;
+            }
+
+            getResults() {
+                return this.results;
+            }
+
+            // Berechnet Distanz zwischen zwei Landmarks
+            static getDistance(landmark1, landmark2) {
+                const dx = landmark1.x - landmark2.x;
+                const dy = landmark1.y - landmark2.y;
+                const dz = landmark1.z - landmark2.z;
+                return Math.sqrt(dx * dx + dy * dy + dz * dz);
+            }
+
+            // Berechnet 2D Distanz (nur x, y)
+            static getDistance2D(landmark1, landmark2) {
+                const dx = landmark1.x - landmark2.x;
+                const dy = landmark1.y - landmark2.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            // Prüft ob Finger gestreckt ist
+            static isFingerExtended(landmarks, fingerTip, fingerPip) {
+                return landmarks[fingerTip].y < landmarks[fingerPip].y;
+            }
+
+            // Gibt wichtige Distanzen zurück
+            static getFingerDistances(landmarks) {
+                // MediaPipe Hand Landmarks Indizes:
+                // 0: Handgelenk
+                // 4: Daumen-Spitze
+                // 8: Zeigefinger-Spitze
+                // 12: Mittelfinger-Spitze
+                // 16: Ringfinger-Spitze
+                // 20: Kleiner Finger-Spitze
+
+                return {
+                    thumbIndex: this.getDistance(landmarks[4], landmarks[8]),
+                    thumbMiddle: this.getDistance(landmarks[4], landmarks[12]),
+                    thumbRing: this.getDistance(landmarks[4], landmarks[16]),
+                    thumbPinky: this.getDistance(landmarks[4], landmarks[20]),
+                    indexMiddle: this.getDistance(landmarks[8], landmarks[12]),
+
+                    // 2D Distanzen für bessere Kontrolle
+                    thumbIndex2D: this.getDistance2D(landmarks[4], landmarks[8]),
+                    thumbMiddle2D: this.getDistance2D(landmarks[4], landmarks[12]),
+                    thumbRing2D: this.getDistance2D(landmarks[4], landmarks[16])
+                };
+            }
+
+            // Erkennt Gesten
+            static detectGesture(landmarks) {
+                const indexExtended = this.isFingerExtended(landmarks, 8, 6);
+                const middleExtended = this.isFingerExtended(landmarks, 12, 10);
+                const ringExtended = this.isFingerExtended(landmarks, 16, 14);
+                const pinkyExtended = this.isFingerExtended(landmarks, 20, 18);
+
+                // Zeigefinger allein = Malen
+                if (indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
+                    return 'PAINT';
+                }
+
+                // Alle Finger gestreckt = Offene Hand
+                if (indexExtended && middleExtended && ringExtended && pinkyExtended) {
+                    return 'OPEN_HAND';
+                }
+
+                // Faust = Pause
+                if (!indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
+                    return 'FIST';
+                }
+
+                return 'OTHER';
+            }
+        }
+
+        // ========================================
+        // SOUND SYNTHESE KLASSE (Tone.js)
+        // ========================================
+        class SoundSynth {
+            constructor() {
+                this.isActive = false;
+                this.synth = null;
+                this.filter = null;
+                this.volume = null;
+                this.initialized = false;
+
+                // Frequenz-Bereich (C3 bis C6)
+                this.minFreq = 130.81;  // C3
+                this.maxFreq = 1046.50; // C6
+
+                // Filter-Bereich
+                this.minFilterFreq = 200;
+                this.maxFilterFreq = 5000;
+
+                // Lautstärke-Bereich
+                this.minVolume = -30;
+                this.maxVolume = -5;
+            }
+
+            async init() {
+                if (this.initialized) return;
+
+                try {
+                    await Tone.start();
+
+                    this.filter = new Tone.Filter({
+                        type: 'lowpass',
+                        frequency: 1000,
+                        rolloff: -12,
+                        Q: 1
+                    });
+
+                    this.volume = new Tone.Volume(this.minVolume);
+
+                    this.synth = new Tone.Synth({
+                        oscillator: {
+                            type: 'sine'
+                        },
+                        envelope: {
+                            attack: 0.05,
+                            decay: 0.1,
+                            sustain: 0.3,
+                            release: 0.8
+                        }
+                    }).chain(this.filter, this.volume, Tone.Destination);
+
+                    this.initialized = true;
+                    console.log('Sound-Synthese initialisiert');
+                } catch (error) {
+                    console.error('Fehler beim Initialisieren der Sound-Synthese:', error);
+                }
+            }
+
+            async toggle() {
+                if (!this.initialized) {
+                    await this.init();
+                }
+
+                this.isActive = !this.isActive;
+
+                if (!this.isActive && this.synth) {
+                    this.synth.triggerRelease();
+                }
+
+                return this.isActive;
+            }
+
+            map(value, inMin, inMax, outMin, outMax) {
+                return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
+            }
+
+            constrain(value, min, max) {
+                return Math.min(Math.max(value, min), max);
+            }
+
+            updateFromDistances(distances) {
+                if (!this.isActive || !this.initialized || !this.synth) return;
+
+                try {
+                    // Distanz Daumen-Zeigefinger → Tonhöhe (kleinere Distanz = höher)
+                    let freq = this.map(
+                        this.constrain(distances.thumbIndex2D, 0.02, 0.3),
+                        0.02, 0.3,
+                        this.maxFreq, this.minFreq
+                    );
+
+                    // Distanz Daumen-Mittelfinger → Lautstärke (kleinere Distanz = lauter)
+                    let vol = this.map(
+                        this.constrain(distances.thumbMiddle2D, 0.02, 0.3),
+                        0.02, 0.3,
+                        this.maxVolume, this.minVolume
+                    );
+
+                    // Distanz Daumen-Ringfinger → Filter-Cutoff (kleinere Distanz = heller)
+                    let filterFreq = this.map(
+                        this.constrain(distances.thumbRing2D, 0.02, 0.3),
+                        0.02, 0.3,
+                        this.maxFilterFreq, this.minFilterFreq
+                    );
+
+                    const rampTime = 0.05;
+
+                    this.synth.frequency.rampTo(freq, rampTime);
+                    this.volume.volume.rampTo(vol, rampTime);
+                    this.filter.frequency.rampTo(filterFreq, rampTime);
+
+                    if (this.synth.state !== 'started') {
+                        this.synth.triggerAttack(freq);
+                    }
+
+                } catch (error) {
+                    console.error('Fehler beim Update der Sound-Parameter:', error);
+                }
+            }
+
+            getDebugInfo(distances) {
+                if (!distances) return '';
+
+                const freq = this.map(
+                    this.constrain(distances.thumbIndex2D, 0.02, 0.3),
+                    0.02, 0.3,
+                    this.maxFreq, this.minFreq
+                );
+
+                const vol = this.map(
+                    this.constrain(distances.thumbMiddle2D, 0.02, 0.3),
+                    0.02, 0.3,
+                    this.maxVolume, this.minVolume
+                );
+
+                const filterFreq = this.map(
+                    this.constrain(distances.thumbRing2D, 0.02, 0.3),
+                    0.02, 0.3,
+                    this.maxFilterFreq, this.minFilterFreq
+                );
+
+                return `Freq: ${freq.toFixed(1)}Hz | Vol: ${vol.toFixed(1)}dB | Filter: ${filterFreq.toFixed(0)}Hz`;
+            }
+
+            stop() {
+                if (this.synth) {
+                    this.synth.triggerRelease();
+                }
+            }
+        }
+
+        // ========================================
+        // GLOBALE VARIABLEN
+        // ========================================
+        let videoElement;
+        let handTracker = null;
+        let soundSynth = null;
+
+        let canvasWidth = 1280;
+        let canvasHeight = 720;
+
+        // Zeichnen
+        let drawing = [];
+        let currentStroke = [];
+        let prevIndexPos = null;
+
+        // Hand-Daten
+        let currentHandLandmarks = null;
+        let currentDistances = null;
+        let currentGesture = null;
+
+        // Farben
+        let currentColor;
+        let hueValue = 0;
+
+        // ========================================
+        // P5.JS SKETCH
+        // ========================================
+        function setup() {
+            let canvas = createCanvas(canvasWidth, canvasHeight);
+            canvas.parent('p5canvas');
+
+            colorMode(HSB, 360, 100, 100);
+            currentColor = color(0, 80, 90);
+
+            soundSynth = new SoundSynth();
+
+            videoElement = document.getElementById('videoElement');
+            handTracker = new HandTracking();
+
+            handTracker.init(videoElement, onHandResults)
+                .catch(err => {
+                    console.error('Fehler beim Initialisieren des Hand-Trackings:', err);
+                    updateStatus('Fehler beim Zugriff auf Kamera', false);
+                });
+
+            // Button Event Listener
+            document.getElementById('toggleSound').addEventListener('click', toggleSound);
+            document.getElementById('clearCanvas').addEventListener('click', clearDrawing);
+            document.getElementById('toggleTracking').addEventListener('click', toggleTracking);
+
+            background(255);
+        }
+
+        function draw() {
+            // Hintergrund mit Trail-Effekt
+            background(255, 255, 255, 10);
+
+            // Zeichne alle Striche
+            for (let stroke of drawing) {
+                drawStroke(stroke);
+            }
+
+            // Aktueller Strich
+            if (currentStroke.length > 0) {
+                drawStroke(currentStroke);
+            }
+
+            // Hand-Visualisierung
+            if (currentHandLandmarks) {
+                drawHandSkeleton(currentHandLandmarks);
+                drawFingerTips(currentHandLandmarks);
+
+                // Malen mit Zeigefinger
+                if (currentGesture === 'PAINT') {
+                    let indexTip = currentHandLandmarks[8];
+                    let x = indexTip.x * width;
+                    let y = indexTip.y * height;
+
+                    // Cursor
+                    push();
+                    noFill();
+                    stroke(currentColor);
+                    strokeWeight(3);
+                    circle(x, y, 30);
+                    pop();
+
+                    // Punkt hinzufügen
+                    if (prevIndexPos) {
+                        currentStroke.push({
+                            x: x,
+                            y: y,
+                            color: currentColor
+                        });
+                    }
+
+                    prevIndexPos = { x, y };
+                } else {
+                    // Strich beenden
+                    if (currentStroke.length > 0) {
+                        drawing.push([...currentStroke]);
+                        currentStroke = [];
+                    }
+                    prevIndexPos = null;
+                }
+            }
+
+            // Debug-Info
+            if (currentDistances) {
+                drawDistanceInfo(currentDistances);
+            }
+
+            // Farbe rotieren
+            hueValue = (hueValue + 0.5) % 360;
+            currentColor = color(hueValue, 80, 90);
+        }
+
+        function drawStroke(stroke) {
+            if (stroke.length < 2) return;
+
+            push();
+            noFill();
+
+            for (let i = 1; i < stroke.length; i++) {
+                let p1 = stroke[i - 1];
+                let p2 = stroke[i];
+
+                stroke(p1.color || currentColor);
+                strokeWeight(5);
+                line(p1.x, p1.y, p2.x, p2.y);
+
+                fill(p1.color || currentColor);
+                noStroke();
+                circle(p1.x, p1.y, 5);
+            }
+
+            let lastPoint = stroke[stroke.length - 1];
+            fill(lastPoint.color || currentColor);
+            noStroke();
+            circle(lastPoint.x, lastPoint.y, 5);
+
+            pop();
+        }
+
+        function drawHandSkeleton(landmarks) {
+            push();
+
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4],
+                [0, 5], [5, 6], [6, 7], [7, 8],
+                [0, 9], [9, 10], [10, 11], [11, 12],
+                [0, 13], [13, 14], [14, 15], [15, 16],
+                [0, 17], [17, 18], [18, 19], [19, 20],
+                [5, 9], [9, 13], [13, 17]
+            ];
+
+            stroke(100, 150, 255, 150);
+            strokeWeight(2);
+
+            for (let [start, end] of connections) {
+                let p1 = landmarks[start];
+                let p2 = landmarks[end];
+                line(p1.x * width, p1.y * height, p2.x * width, p2.y * height);
+            }
+
+            pop();
+        }
+
+        function drawFingerTips(landmarks) {
+            push();
+
+            const fingerTips = [4, 8, 12, 16, 20];
+            const colors = [
+                color(255, 100, 100),
+                color(100, 255, 100),
+                color(100, 100, 255),
+                color(255, 255, 100),
+                color(255, 100, 255)
+            ];
+
+            for (let i = 0; i < fingerTips.length; i++) {
+                let tip = landmarks[fingerTips[i]];
+                fill(colors[i]);
+                noStroke();
+                circle(tip.x * width, tip.y * height, 12);
+            }
+
+            pop();
+        }
+
+        function drawDistanceInfo(distances) {
+            push();
+            fill(0);
+            noStroke();
+            textSize(14);
+            textAlign(LEFT, TOP);
+
+            let y = 20;
+            let x = 20;
+
+            text(`Daumen-Zeigefinger: ${(distances.thumbIndex2D * 100).toFixed(1)}`, x, y);
+            y += 20;
+            text(`Daumen-Mittelfinger: ${(distances.thumbMiddle2D * 100).toFixed(1)}`, x, y);
+            y += 20;
+            text(`Daumen-Ringfinger: ${(distances.thumbRing2D * 100).toFixed(1)}`, x, y);
+            y += 20;
+
+            if (soundSynth && soundSynth.isActive) {
+                text(soundSynth.getDebugInfo(distances), x, y);
+            }
+
+            pop();
+        }
+
+        // ========================================
+        // CALLBACKS & EVENT HANDLER
+        // ========================================
+        function onHandResults(results) {
+            const handsCountElement = document.getElementById('handsCount');
+            if (handsCountElement) {
+                handsCountElement.textContent = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+            }
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                currentHandLandmarks = results.multiHandLandmarks[0];
+                currentDistances = HandTracking.getFingerDistances(currentHandLandmarks);
+                currentGesture = HandTracking.detectGesture(currentHandLandmarks);
+
+                if (soundSynth && soundSynth.isActive) {
+                    soundSynth.updateFromDistances(currentDistances);
+                }
+            } else {
+                currentHandLandmarks = null;
+                currentDistances = null;
+                currentGesture = null;
+
+                if (soundSynth) {
+                    soundSynth.stop();
+                }
+            }
+        }
+
+        async function toggleSound() {
+            if (!soundSynth) {
+                soundSynth = new SoundSynth();
+            }
+
+            const isActive = await soundSynth.toggle();
+            const button = document.getElementById('toggleSound');
+            button.textContent = `Sound: ${isActive ? 'An' : 'Aus'}`;
+            button.style.background = isActive ? '#28a745' : '#667eea';
+        }
+
+        function clearDrawing() {
+            drawing = [];
+            currentStroke = [];
+            background(255);
+        }
+
+        function toggleTracking() {
+            if (handTracker) {
+                const isActive = handTracker.toggle();
+                const button = document.getElementById('toggleTracking');
+                button.textContent = `Tracking: ${isActive ? 'An' : 'Aus'}`;
+                button.style.background = isActive ? '#28a745' : '#dc3545';
+
+                updateStatus(isActive ? 'Tracking aktiv' : 'Tracking pausiert', isActive);
+            }
+        }
+
+        function updateStatus(message, isActive) {
+            const statusElement = document.getElementById('statusText');
+            if (statusElement) {
+                statusElement.textContent = message;
+                statusElement.style.color = isActive ? '#28a745' : '#dc3545';
+            }
+        }
+
+        function keyPressed() {
+            if (key === 'c' || key === 'C') {
+                clearDrawing();
+            }
+            if (key === 's' || key === 'S') {
+                toggleSound();
+            }
+            if (key === 't' || key === 'T') {
+                toggleTracking();
+            }
+        }
+    </script>
 </body>
 </html>
