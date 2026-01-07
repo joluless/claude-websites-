@@ -584,22 +584,27 @@
             document.getElementById('clearCanvas').addEventListener('click', clearDrawing);
             document.getElementById('toggleTracking').addEventListener('click', toggleTracking);
 
-            // Window Resize Handler (optional - für bessere Responsiveness)
+            // Window Resize Handler mit Throttling für bessere Performance
+            let resizeTimeout;
             window.addEventListener('resize', () => {
-                const newSize = getOptimalCanvasSize();
-                if (newSize.width !== canvasWidth || newSize.height !== canvasHeight) {
-                    canvasWidth = newSize.width;
-                    canvasHeight = newSize.height;
-                    resizeCanvas(canvasWidth, canvasHeight);
-                }
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    const newSize = getOptimalCanvasSize();
+                    if (newSize.width !== canvasWidth || newSize.height !== canvasHeight) {
+                        canvasWidth = newSize.width;
+                        canvasHeight = newSize.height;
+                        resizeCanvas(canvasWidth, canvasHeight);
+                    }
+                }, 250); // 250ms Debounce
             });
 
-            background(255);
+            // Weißer Hintergrund in HSB (Hue 0, Sat 0, Brightness 100)
+            background(0, 0, 100);
         }
 
         function draw() {
-            // Hintergrund mit Trail-Effekt
-            background(255, 255, 255, 10);
+            // Hintergrund mit Trail-Effekt (HSB: Hue 0, Sat 0, Brightness 100 = Weiß)
+            background(0, 0, 100, 10);
 
             // Zeichne alle Striche
             for (let stroke of drawing) {
@@ -699,7 +704,8 @@
                 [5, 9], [9, 13], [13, 17]
             ];
 
-            stroke(100, 150, 255, 150);
+            // HSB: Blau mit Transparenz (Hue 220, Sat 60, Brightness 90, Alpha 60%)
+            stroke(220, 60, 90, 150);
             strokeWeight(2);
 
             for (let [start, end] of connections) {
@@ -715,12 +721,13 @@
             push();
 
             const fingerTips = [4, 8, 12, 16, 20];
+            // HSB-Farben für Fingerspitzen (Daumen, Zeigefinger, Mittelfinger, Ringfinger, Kleiner Finger)
             const colors = [
-                color(255, 100, 100),
-                color(100, 255, 100),
-                color(100, 100, 255),
-                color(255, 255, 100),
-                color(255, 100, 255)
+                color(0, 70, 100),    // Rot (Daumen)
+                color(120, 70, 100),  // Grün (Zeigefinger)
+                color(240, 70, 100),  // Blau (Mittelfinger)
+                color(60, 70, 100),   // Gelb (Ringfinger)
+                color(300, 70, 100)   // Magenta (Kleiner Finger)
             ];
 
             for (let i = 0; i < fingerTips.length; i++) {
@@ -799,7 +806,8 @@
         function clearDrawing() {
             drawing = [];
             currentStroke = [];
-            background(255);
+            // Weißer Hintergrund in HSB
+            background(0, 0, 100);
         }
 
         function toggleTracking() {
@@ -807,7 +815,8 @@
                 const isActive = handTracker.toggle();
                 const button = document.getElementById('toggleTracking');
                 button.textContent = `Tracking: ${isActive ? 'An' : 'Aus'}`;
-                button.style.background = isActive ? '#28a745' : '#dc3545';
+                // Grün wenn aktiv, Rot wenn pausiert
+                button.style.background = isActive ? '#28a745' : '#667eea';
 
                 updateStatus(isActive ? 'Tracking aktiv' : 'Tracking pausiert', isActive);
             }
